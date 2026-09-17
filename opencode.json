@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "aidera-build",
+  "subagent_depth": 1,
+  "share": "disabled",
+  "snapshot": true,
+  "instructions": [
+    "AGENTS.md",
+    "PRODUCT.md",
+    "DESIGN.md",
+    "AIDERA-CONTENT-STUDIO-NEXTJS-MASTER-PRD.md",
+    "API-CONTRACT.md"
+  ],
+  "permission": "allow"
+}

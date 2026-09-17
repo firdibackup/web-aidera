@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:aidera:schema:runtime-contract:v1",
+  "title": "AIDERA Agent Response V1",
+  "description": "Frontend-local draft schema for the structured agent response. The executable source of truth must live in /home/ubuntu/aidera-bridge.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "message",
+    "blocks",
+    "artifacts",
+    "actions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "aidera.agent_response.v1"
+    },
+    "message": {
+      "type": "string"
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/block"
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/artifact"
+      }
+    },
+    "proposedInstructions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/proposedInstruction"
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/action"
+      }
+    },
+    "unstructured": {
+      "type": "boolean"
+    }
+  },
+  "$defs": {
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "items"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "block": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "title"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "recommendation",
+            "warning",
+            "checklist",
+            "comparison",
+            "plan_item",
+            "metric",
+            "quote",
+            "code",
+            "prompt"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "success",
+            "warning",
+            "critical"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "label"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "checked": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "before": {
+          "type": "string"
+        },
+        "after": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "title",
+        "version",
+        "path"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "type": {
+          "enum": [
+            "research",
+            "draft",
+            "validation",
+            "growth",
+            "design_brief",
+            "qa",
+            "final"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "path": {
+          "type": "string"
+        }
+      }
+    },
+    "proposedInstruction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "text",
+        "reason"
+      ],
+      "properties": {
+        "scope": {
+          "enum": [
+            "agent",
+            "workflow",
+            "content"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "label",
+        "payload"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "approve",
+            "revise",
+            "save_instruction",
+            "send_to_agent",
+            "create_tasks"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

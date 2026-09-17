@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+coverage/
+.vitest/
+*.tsbuildinfo
+playwright-report/
+test-results/
+*.log
+.DS_Store
+.env*
+!.env.example
+.superpowers/
+.impeccable/live/

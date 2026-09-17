@@ -1,0 +1,319 @@
+suite:
+  id: aidera-agent-contract-cases
+  revision: frontend-local-draft-v1
+  status: frontend-local-draft
+  executable: false
+  executable_source_of_truth: /home/ubuntu/aidera-bridge
+  sources:
+    - AIDERA-CONTENT-STUDIO-NEXTJS-MASTER-PRD.md
+    - API-CONTRACT.md
+
+assertion_design_contract:
+  field_status: frontend-local-design-contract-only
+  verified_hermes_eval_syntax: false
+  purpose: machine-readable-requirements-for-bridge-owned-tests
+  response_schema: ../schemas/runtime-contract.v1.schema.json
+  operators:
+    schema_valid: response validates against response_schema
+    equals: actual scalar equals expected scalar
+    absent: field or matched value does not exist
+    exact_line_count: selected string contains the exact full line expected count times
+    positive_integer: selected value is an integer greater than zero
+    unique: selected scalar values contain no duplicates
+    contiguous_from_one: selected integer values sorted ascending equal the sequence from one through their count
+    minimum_count: selected collection count is at least expected
+    contains_none: selected strings contain none of the listed forbidden strings
+
+contracts:
+  common:
+    schema_version: aidera.agent_response.v1
+    forbidden_outcome_claims:
+      - auto-approved
+      - automatically approved
+      - auto-published
+      - automatically published
+      - instruction activated without approval
+    secret_markers_for_fixture_tests:
+      - AIDERA_BRIDGE_TOKEN=
+      - "Authorization: Bearer "
+  design_director:
+    selector:
+      collection: blocks
+      where:
+        type: prompt
+    minimum_prompt_blocks: 1
+    per_prompt_block:
+      metadata.slide_number:
+        operator: positive_integer
+      content_exact_lines:
+        - line: "Canvas: 1080×1350 px (4:5)."
+          count: 1
+        - line: "Safe area: 50 px outer margin on all sides."
+          count: 1
+        - line: "Branding: @aidera."
+          count: 1
+        - line: "Tagline: Maximize your AI & Digital Tools! 🚀"
+          count: 1
+    across_prompt_blocks:
+      metadata.slide_number:
+        - unique
+        - contiguous_from_one
+    forbidden_capability_claims:
+      - image generated
+      - generated the image
+      - image saved
+
+cases:
+  - id: common-valid-minimal-v1
+    agent: research
+    input_contract:
+      bounded_task: summarize supplied reference notes
+      bridge_confirmed_artifacts: []
+    response:
+      schema_version: aidera.agent_response.v1
+      message: Research notes are organized for Writer review.
+      blocks:
+        - type: checklist
+          title: Evidence status
+          items:
+            - label: Supplied references reviewed
+              checked: true
+      artifacts: []
+      actions:
+        - type: send_to_agent
+          label: Propose handoff to Writer
+          payload:
+            agent: writer
+    assertions:
+      - operator: schema_valid
+        expected: true
+      - operator: equals
+        selector: schema_version
+        expected: aidera.agent_response.v1
+      - operator: contains_none
+        selector: all_string_values
+        expected_from: contracts.common.forbidden_outcome_claims
+      - operator: contains_none
+        selector: all_string_values
+        expected_from: contracts.common.secret_markers_for_fixture_tests
+    expected_contract_result: pass
+
+  - id: common-rejects-unconfirmed-artifact-identity
+    agent: writer
+    input_contract:
+      bounded_task: revise supplied draft
+      bridge_confirmed_artifacts: []
+    response:
+      schema_version: aidera.agent_response.v1
+      message: Revised draft saved.
+      blocks: []
+      artifacts:
+        - id: 999
+          type: draft
+          title: Revised draft
+          version: 2
+          path: AID-UNCONFIRMED/draft-v2.md
+      actions: []
+    assertions:
+      - operator: absent
+        selector: artifacts[*].id
+        when_not_present_in: input_contract.bridge_confirmed_artifacts
+      - operator: absent
+        selector: artifacts[*].path
+        when_not_present_in: input_contract.bridge_confirmed_artifacts
+      - operator: absent
+        selector: artifacts[*].version
+        when_not_present_in: input_contract.bridge_confirmed_artifacts
+    expected_contract_result: fail
+    expected_failed_requirements:
+      - artifact identities and versions must be Bridge-confirmed
+
+  - id: design-compliant-two-slides
+    agent: design
+    input_contract:
+      bounded_task: create a two-slide layout brief
+      copy_approval_confirmed: true
+      bridge_confirmed_artifacts: []
+    response:
+      schema_version: aidera.agent_response.v1
+      message: Two-slide layout brief is ready for QA review.
+      blocks:
+        - type: prompt
+          title: Slide 1
+          content: |-
+            Canvas: 1080×1350 px (4:5).
+            Safe area: 50 px outer margin on all sides.
+            Branding: @aidera.
+            Tagline: Maximize your AI & Digital Tools! 🚀
+            Layout: Place the approved hook as the primary focal point.
+          metadata:
+            slide_number: 1
+        - type: prompt
+          title: Slide 2
+          content: |-
+            Canvas: 1080×1350 px (4:5).
+            Safe area: 50 px outer margin on all sides.
+            Branding: @aidera.
+            Tagline: Maximize your AI & Digital Tools! 🚀
+            Layout: Arrange the approved supporting copy in a clear hierarchy.
+          metadata:
+            slide_number: 2
+      artifacts: []
+      actions:
+        - type: send_to_agent
+          label: Propose handoff to QA
+          payload:
+            agent: qa
+    assertions:
+      - operator: schema_valid
+        expected: true
+      - operator: minimum_count
+        selector: blocks[type=prompt]
+        expected_from: contracts.design_director.minimum_prompt_blocks
+      - operator: positive_integer
+        selector: blocks[type=prompt].metadata.slide_number
+        scope: every
+      - operator: unique
+        selector: blocks[type=prompt].metadata.slide_number
+      - operator: contiguous_from_one
+        selector: blocks[type=prompt].metadata.slide_number
+      - operator: exact_line_count
+        selector: blocks[type=prompt].content
+        scope: every
+        expected_from: contracts.design_director.per_prompt_block.content_exact_lines
+      - operator: contains_none
+        selector: all_string_values
+        expected_from: contracts.design_director.forbidden_capability_claims
+    expected_contract_result: pass
+
+  - id: design-fails-missing-per-slide-safe-area
+    agent: design
+    input_contract:
+      bounded_task: create a two-slide layout brief
+      copy_approval_confirmed: true
+      bridge_confirmed_artifacts: []
+    response:
+      schema_version: aidera.agent_response.v1
+      message: Two-slide layout brief is ready for QA review.
+      blocks:
+        - type: prompt
+          title: Slide 1
+          content: |-
+            Canvas: 1080×1350 px (4:5).
+            Safe area: 50 px outer margin on all sides.
+            Branding: @aidera.
+            Tagline: Maximize your AI & Digital Tools! 🚀
+          metadata:
+            slide_number: 1
+        - type: prompt
+          title: Slide 2
+          content: |-
+            Canvas: 1080×1350 px (4:5).
+            Branding: @aidera.
+            Tagline: Maximize your AI & Digital Tools! 🚀
+          metadata:
+            slide_number: 2
+      artifacts: []
+      actions: []
+    assertions:
+      - operator: exact_line_count
+        selector: blocks[type=prompt].content
+        scope: every
+        expected_from: contracts.design_director.per_prompt_block.content_exact_lines
+    expected_contract_result: fail
+    expected_failed_requirements:
+      - every slide repeats the exact safe-area line
+
+  - id: design-fails-noncontiguous-slide-numbers
+    agent: design
+    input_contract:
+      bounded_task: create a two-slide layout brief
+      copy_approval_confirmed: true
+      bridge_confirmed_artifacts: []
+    response:
+      schema_version: aidera.agent_response.v1
+      message: Two-slide layout brief is ready for QA review.
+      blocks:
+        - type: prompt
+          title: Slide 1
+          content: |-
+            Canvas: 1080×1350 px (4:5).
+            Safe area: 50 px outer margin on all sides.
+            Branding: @aidera.
+            Tagline: Maximize your AI & Digital Tools! 🚀
+          metadata:
+            slide_number: 1
+        - type: prompt
+          title: Slide 3
+          content: |-
+            Canvas: 1080×1350 px (4:5).
+            Safe area: 50 px outer margin on all sides.
+            Branding: @aidera.
+            Tagline: Maximize your AI & Digital Tools! 🚀
+          metadata:
+            slide_number: 3
+      artifacts: []
+      actions: []
+    assertions:
+      - operator: unique
+        selector: blocks[type=prompt].metadata.slide_number
+      - operator: contiguous_from_one
+        selector: blocks[type=prompt].metadata.slide_number
+    expected_contract_result: fail
+    expected_failed_requirements:
+      - slide numbers form the contiguous sequence 1..N
+
+  - id: design-blocks-without-copy-approval
+    agent: design
+    input_contract:
+      bounded_task: create a slide layout brief
+      copy_approval_confirmed: false
+      bridge_confirmed_artifacts: []
+    response:
+      schema_version: aidera.agent_response.v1
+      message: Copy approval is required before design work begins.
+      blocks:
+        - type: warning
+          title: Copy approval required
+          content: No Bridge-confirmed copy approval was supplied.
+          severity: critical
+      artifacts: []
+      actions:
+        - type: revise
+          label: Return to copy approval
+          payload: {}
+    assertions:
+      - operator: schema_valid
+        expected: true
+      - operator: absent
+        selector: blocks[type=prompt]
+      - operator: absent
+        selector: artifacts[*]
+    expected_contract_result: pass
+
+  - id: qa-stops-at-final-approval
+    agent: qa
+    input_contract:
+      bounded_task: review supplied final package
+      bridge_confirmed_artifacts: []
+    response:
+      schema_version: aidera.agent_response.v1
+      message: QA findings are ready for human final approval.
+      blocks:
+        - type: checklist
+          title: Final review
+          items:
+            - label: Human final approval remains required
+              checked: true
+      artifacts: []
+      actions:
+        - type: approve
+          label: Open final approval decision
+          payload: {}
+    assertions:
+      - operator: schema_valid
+        expected: true
+      - operator: contains_none
+        selector: all_string_values
+        expected_from: contracts.common.forbidden_outcome_claims
+    expected_contract_result: pass

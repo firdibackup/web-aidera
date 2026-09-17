@@ -1,0 +1,120 @@
+package:
+  id: aidera-hermes-agents
+  revision: frontend-local-draft-v1
+  status: frontend-local-draft
+  executable: false
+  executable_source_of_truth: /home/ubuntu/aidera-bridge
+  sources:
+    - AIDERA-CONTENT-STUDIO-NEXTJS-MASTER-PRD.md
+    - API-CONTRACT.md
+
+loader_design_contract:
+  field_status: design-contract-only
+  verified_hermes_loader_syntax: false
+  executable_configuration: false
+  common_profile_document: COMMON.md
+  runtime_output_schema: schemas/runtime-contract.v1.schema.json
+  evaluation_cases: evals/agent-contract-cases.yaml
+  model_bindings: bridge-managed-and-not-declared-here
+  credential_bindings: bridge-managed-and-not-declared-here
+  executable_capability_bindings: bridge-managed-and-not-declared-here
+  profile_mapping:
+    ceo:
+      bridge_profile: aidera-ceo
+      design_document: profiles/ceo.md
+    research:
+      bridge_profile: aidera-research
+      design_document: profiles/research.md
+    writer:
+      bridge_profile: aidera-writer
+      design_document: profiles/writer.md
+    validator:
+      bridge_profile: aidera-validator
+      design_document: profiles/validator.md
+    growth:
+      bridge_profile: aidera-growth
+      design_document: profiles/growth.md
+    design:
+      bridge_profile: aidera-design
+      design_document: profiles/design.md
+    qa:
+      bridge_profile: aidera-qa
+      design_document: profiles/qa.md
+
+runtime_contract:
+  schema_version: aidera.agent_response.v1
+  bounded_task: required
+  human_approval_gates: required
+  auto_approval: forbidden
+  auto_publish: forbidden
+  secret_exposure: forbidden
+  chain_of_thought_storage: forbidden
+  artifact_mutation: forbidden
+  instruction_mutation_without_approval: forbidden
+  activity_source: bridge-real-events-only
+
+role_ownership:
+  ceo:
+    owns:
+      - weekly-and-monthly-strategy-proposals
+      - plan-item-proposals
+    inbound_boundary: operator-planning-context
+    outbound_boundary: waiting_plan_approval
+  research:
+    owns:
+      - reference-mining
+      - slide-by-slide-research
+    inbound_boundary: approved-content-research-task
+    outbound_boundary: writer
+  writer:
+    owns:
+      - hook
+      - carousel-copy
+      - caption
+      - call-to-action
+    inbound_boundary: research-handoff
+    outbound_boundary: validator
+  validator:
+    owns:
+      - claim-review
+      - logic-review
+      - misleading-risk-review
+      - completeness-review
+    inbound_boundary: writer-draft
+    outbound_boundary:
+      - growth
+      - writer-revision
+  growth:
+    owns:
+      - retention-review
+      - save-share-comment-review
+      - distribution-review
+    inbound_boundary: validated-draft
+    outbound_boundary: waiting_copy_approval
+  design:
+    owns:
+      - layout-briefs
+      - slide-prompts
+    excludes:
+      - image-generation
+    inbound_boundary: approved-copy
+    outbound_boundary: qa
+  qa:
+    owns:
+      - final-checklist
+      - typo-review
+      - branding-review
+      - safe-area-review
+    inbound_boundary: design-brief
+    outbound_boundary: final_approval
+
+design_director_requirements:
+  contract_status: frontend-local-machine-test-design
+  output_unit: one-prompt-block-per-slide
+  slide_number_metadata: positive-integer
+  required_exact_lines_per_prompt_block:
+    - "Canvas: 1080×1350 px (4:5)."
+    - "Safe area: 50 px outer margin on all sides."
+    - "Branding: @aidera."
+    - "Tagline: Maximize your AI & Digital Tools! 🚀"
+  image_generation: forbidden
