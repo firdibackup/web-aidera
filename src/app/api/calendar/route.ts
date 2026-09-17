@@ -1,5 +1,6 @@
 import { CalendarDataSchema, CalendarQuerySchema } from "@/lib/api/contracts";
-import { liveData } from "@/lib/api/live";
+import { adaptCalendar } from "@/lib/api/adapters";
+import { liveAdapted } from "@/lib/api/live";
 import { jsonData, prototypeMeta, routeError } from "@/lib/api/server";
 import { isPrototypeMode } from "@/lib/bridge/env";
 import { getPrototypeStore } from "@/lib/prototype/store";
@@ -26,7 +27,9 @@ export async function GET(request: Request): Promise<Response> {
       params.set("end", query.end);
     }
 
-    const response = await liveData("/api/calendar", CalendarDataSchema, { query: params });
+    const response = await liveAdapted("/api/calendar", CalendarDataSchema, adaptCalendar, {
+      query: params,
+    });
     return jsonData(response.data, response.meta);
   } catch (error) {
     return routeError(error);

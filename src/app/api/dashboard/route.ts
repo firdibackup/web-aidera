@@ -1,5 +1,6 @@
 import { DashboardSchema } from "@/lib/api/contracts";
-import { liveData } from "@/lib/api/live";
+import { adaptDashboard } from "@/lib/api/adapters";
+import { liveAdapted } from "@/lib/api/live";
 import { jsonData, prototypeMeta, routeError } from "@/lib/api/server";
 import { isPrototypeMode } from "@/lib/bridge/env";
 import { getPrototypeStore } from "@/lib/prototype/store";
@@ -13,7 +14,7 @@ export async function GET(): Promise<Response> {
       return jsonData(store.getDashboard(), prototypeMeta());
     }
 
-    const response = await liveData("/api/dashboard", DashboardSchema);
+    const response = await liveAdapted("/api/dashboard", DashboardSchema, adaptDashboard);
     return jsonData(response.data, response.meta);
   } catch (error) {
     return routeError(error);

@@ -1,9 +1,12 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { LayoutGrid, Rows3, Search } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { LayoutGrid, Loader2, Plus, Rows3, Search } from "lucide-react";
 import Link from "next/link";
-import { useId, useState } from "react";
+import type { Route } from "next";
+import { useRouter } from "next/navigation";
+import { useId, useState, type FormEvent } from "react";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,9 +18,12 @@ import {
   priorityTone,
   stageLabels,
 } from "@/components/ui/vocabulary";
+import { bff, createIdempotencyKey } from "@/lib/api/client";
 import {
   CONTENT_STAGES,
+  CreatedContentSchema,
   type ContentListItem,
+  type ContentPriority,
   type ContentSort,
   type ContentStage,
 } from "@/lib/api/contracts";
@@ -34,6 +40,8 @@ const sortLabels: Record<ContentSort, string> = {
 };
 
 export function ContentLibraryScreen() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const searchId = useId();
   const stageId = useId();
   const sortId = useId();
@@ -41,6 +49,12 @@ export function ContentLibraryScreen() {
   const [stage, setStage] = useState<ContentStage | "">("");
   const [sort, setSort] = useState<ContentSort>("updated_desc");
   const [view, setView] = useState<"table" | "cards">("table");
+  const [openCreate, setOpenCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [title, setTitle] = useState("");
+  const [format, setFormat] = useState("carousel");
+  const [pillar, setPillar] = useState("edukasi");
+  const [priority, setPriority] = useState<ContentPriority>("medium");
 
   const contents = useQuery({
     ...contentsQueryOptions({
@@ -53,6 +67,42 @@ export function ContentLibraryScreen() {
   const items = contents.data?.data ?? [];
   const hasResult = contents.data !== undefined && !contents.isError;
 
+  async function handleCreate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (title.trim().length === 0 || creating) {
+      return;
+    }
+
+    setCreating(true);
+
+    try {
+      const result = await bff("/api/contents", CreatedContentSchema, {
+        method: "POST",
+        headers: { "Idempotency-Key": createIdempotencyKey() },
+        body: {
+          title: title.trim(),
+          format: format.trim(),
+          pillar: pillar.trim(),
+          priority,
+        },
+      });
+
+      toast.success("Konten dibuat", {
+        description: `ID ${result.data.id} berhasil ditambahkan ke tahap Ideas.`,
+      });
+      setTitle("");
+      setOpenCreate(false);
+      await queryClient.invalidateQueries({ queryKey: ["aidera", "contents"] });
+      router.push(`/content/${result.data.id}` as Route);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Gagal membuat konten.";
+      toast.error("Gagal membuat konten", { description: message });
+    } finally {
+      setCreating(false);
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -60,28 +110,144 @@ export function ContentLibraryScreen() {
         snippet="Satu tempat untuk ide, referensi, draft, dan paket final."
         meta={contents.data ? <Badge tone="neutral">{items.length} konten</Badge> : null}
         actions={
-          <div className="flex items-center gap-1 rounded-[var(--radius-control)] border border-line p-1">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               size="sm"
-              variant={view === "table" ? "primary" : "ghost"}
-              aria-pressed={view === "table"}
-              onClick={() => setView("table")}
+              variant="primary"
+              onClick={() => setOpenCreate(true)}
             >
-              <Rows3 aria-hidden className="size-4" />
-              Tabel
+              <Plus aria-hidden className="size-4" />
+              Buat Konten
             </Button>
-            <Button
-              size="sm"
-              variant={view === "cards" ? "primary" : "ghost"}
-              aria-pressed={view === "cards"}
-              onClick={() => setView("cards")}
-            >
-              <LayoutGrid aria-hidden className="size-4" />
-              Kartu
-            </Button>
+            <div className="flex items-center gap-1 rounded-[var(--radius-control)] border border-line p-1">
+              <Button
+                size="sm"
+                variant={view === "table" ? "primary" : "ghost"}
+                aria-pressed={view === "table"}
+                onClick={() => setView("table")}
+              >
+                <Rows3 aria-hidden className="size-4" />
+                Tabel
+              </Button>
+              <Button
+                size="sm"
+                variant={view === "cards" ? "primary" : "ghost"}
+                aria-pressed={view === "cards"}
+                onClick={() => setView("cards")}
+              >
+                <LayoutGrid aria-hidden className="size-4" />
+                Kartu
+              </Button>
+            </div>
           </div>
         }
       />
+
+      {openCreate ? (
+        <section
+          aria-labelledby="create-heading"
+          className="panel flex flex-col gap-4 border-brand/30 bg-surface p-5 shadow-md"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <h2 id="create-heading" className="text-sm font-semibold text-ink">
+              Buat Konten Baru
+            </h2>
+            <Button
+              size="sm"
+              variant="ghost"
+              type="button"
+              onClick={() => setOpenCreate(false)}
+            >
+              Batal
+            </Button>
+          </div>
+
+          <form onSubmit={handleCreate} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="sm:col-span-2 lg:col-span-2">
+              <label htmlFor="create-title" className="text-[0.75rem] font-medium text-ink-muted">
+                Judul / Topik
+              </label>
+              <input
+                id="create-title"
+                type="text"
+                required
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Contoh: 5 Tips Promp AI untuk UMKM"
+                className="mt-1 min-h-10 w-full rounded-[var(--radius-control)] border border-line-strong bg-surface px-3 text-sm text-ink outline-none focus:border-brand"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="create-pillar" className="text-[0.75rem] font-medium text-ink-muted">
+                Pilar Konten
+              </label>
+              <input
+                id="create-pillar"
+                type="text"
+                value={pillar}
+                onChange={(event) => setPillar(event.target.value)}
+                placeholder="edukasi, studi kasus, tips"
+                className="mt-1 min-h-10 w-full rounded-[var(--radius-control)] border border-line-strong bg-surface px-3 text-sm text-ink outline-none focus:border-brand"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="create-format" className="text-[0.75rem] font-medium text-ink-muted">
+                Format
+              </label>
+              <select
+                id="create-format"
+                value={format}
+                onChange={(event) => setFormat(event.target.value)}
+                className="mt-1 min-h-10 w-full rounded-[var(--radius-control)] border border-line-strong bg-surface px-3 text-sm text-ink"
+              >
+                <option value="carousel">Carousel</option>
+                <option value="single">Single Post</option>
+                <option value="reel">Reel / Video</option>
+                <option value="story">Story</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="create-priority" className="text-[0.75rem] font-medium text-ink-muted">
+                Prioritas
+              </label>
+              <select
+                id="create-priority"
+                value={priority}
+                onChange={(event) => setPriority(event.target.value as ContentPriority)}
+                className="mt-1 min-h-10 w-full rounded-[var(--radius-control)] border border-line-strong bg-surface px-3 text-sm text-ink"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+
+            <div className="sm:col-span-2 lg:col-span-4 flex items-center justify-end gap-2 pt-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                onClick={() => setOpenCreate(false)}
+              >
+                Batal
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                type="submit"
+                disabled={creating || title.trim().length === 0}
+              >
+                {creating ? <Loader2 aria-hidden className="size-4 animate-spin" /> : <Plus aria-hidden className="size-4" />}
+                {creating ? "Menyimpan…" : "Simpan ke Ideas"}
+              </Button>
+            </div>
+          </form>
+        </section>
+      ) : null}
 
       <section className="panel flex flex-col gap-3 p-4 md:flex-row md:items-end">
         <div className="flex-1">

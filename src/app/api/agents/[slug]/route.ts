@@ -1,5 +1,6 @@
 import { AgentSchema, AgentSlugSchema } from "@/lib/api/contracts";
-import { liveData } from "@/lib/api/live";
+import { adaptAgent } from "@/lib/api/adapters";
+import { liveAdapted } from "@/lib/api/live";
 import { jsonData, prototypeMeta, routeError, type RouteContext } from "@/lib/api/server";
 import { isPrototypeMode } from "@/lib/bridge/env";
 import { getPrototypeStore } from "@/lib/prototype/store";
@@ -21,7 +22,7 @@ export async function GET(
       return jsonData(store.getAgent(agentSlug), prototypeMeta());
     }
 
-    const response = await liveData(`/api/agents/${agentSlug}`, AgentSchema);
+    const response = await liveAdapted(`/api/agents/${agentSlug}`, AgentSchema, adaptAgent);
     return jsonData(response.data, response.meta);
   } catch (error) {
     return routeError(error);

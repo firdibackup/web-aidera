@@ -1,5 +1,6 @@
 import { ContentDetailSchema } from "@/lib/api/contracts";
-import { liveData } from "@/lib/api/live";
+import { adaptContentDetail } from "@/lib/api/adapters";
+import { liveAdapted } from "@/lib/api/live";
 import {
   jsonData,
   parsePositiveInteger,
@@ -24,7 +25,11 @@ export async function GET(_request: Request, context: ContentRouteContext): Prom
       return jsonData(store.getContent(contentId), prototypeMeta());
     }
 
-    const response = await liveData(`/api/contents/${contentId}`, ContentDetailSchema);
+    const response = await liveAdapted(
+      `/api/contents/${contentId}`,
+      ContentDetailSchema,
+      adaptContentDetail,
+    );
     return jsonData(response.data, response.meta);
   } catch (error) {
     return routeError(error);

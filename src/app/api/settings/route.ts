@@ -1,5 +1,6 @@
 import { SettingsSchema, UpdateSettingsInputSchema } from "@/lib/api/contracts";
-import { liveData } from "@/lib/api/live";
+import { adaptSettings } from "@/lib/api/adapters";
+import { liveAdapted } from "@/lib/api/live";
 import {
   getIdempotencyKey,
   jsonData,
@@ -19,7 +20,7 @@ export async function GET(): Promise<Response> {
       return jsonData(store.getSettings(), prototypeMeta());
     }
 
-    const response = await liveData("/api/settings", SettingsSchema);
+    const response = await liveAdapted("/api/settings", SettingsSchema, adaptSettings);
     return jsonData(response.data, response.meta);
   } catch (error) {
     return routeError(error);
@@ -36,7 +37,7 @@ export async function PUT(request: Request): Promise<Response> {
       return jsonData(store.updateSettings(input), prototypeMeta());
     }
 
-    const response = await liveData("/api/settings", SettingsSchema, {
+    const response = await liveAdapted("/api/settings", SettingsSchema, adaptSettings, {
       method: "PUT",
       body: input,
       idempotencyKey,

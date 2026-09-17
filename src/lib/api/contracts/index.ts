@@ -8,4 +8,5 @@ export * from "./contents";
 export * from "./dashboard";
 export * from "./instructions";
 export * from "./plans";
+export * from "./runs";
 export * from "./settings";

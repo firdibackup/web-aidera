@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 import { AgentListItemSchema } from "@/lib/api/contracts";
-import { liveData } from "@/lib/api/live";
+import { adaptAgentList } from "@/lib/api/adapters";
+import { liveAdapted } from "@/lib/api/live";
 import { jsonData, prototypeMeta, routeError } from "@/lib/api/server";
 import { isPrototypeMode } from "@/lib/bridge/env";
 import { getPrototypeStore } from "@/lib/prototype/store";
@@ -16,7 +17,11 @@ export async function GET(): Promise<Response> {
       return jsonData(data, prototypeMeta({ total: data.length, limit: data.length, offset: 0 }));
     }
 
-    const response = await liveData("/api/agents", z.array(AgentListItemSchema));
+    const response = await liveAdapted(
+      "/api/agents",
+      z.array(AgentListItemSchema),
+      adaptAgentList,
+    );
     return jsonData(response.data, response.meta);
   } catch (error) {
     return routeError(error);

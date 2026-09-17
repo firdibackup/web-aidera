@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Paperclip, Send } from "lucide-react";
-import { useState } from "react";
+import { Loader2, Send } from "lucide-react";
+import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { agentStatusLabel, agentStatusTone } from "@/components/agents/agents-screen";
@@ -11,7 +11,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton, StateBlock } from "@/components/ui/state";
-import type { AgentSlug, Message, Thread } from "@/lib/api/contracts";
+import { bff, createIdempotencyKey } from "@/lib/api/client";
+import {
+  RunDetailSchema,
+  RunSummarySchema,
+  TERMINAL_RUN_STATUSES,
+  type AgentResponseV1,
+  type AgentSlug,
+  type Message,
+  type RunDetail,
+  type Thread,
+} from "@/lib/api/contracts";
 import { formatInJakarta } from "@/lib/dates/jakarta";
 import {
   agentQueryOptions,
@@ -150,14 +160,11 @@ export function AgentWorkspace({ slug }: { slug: AgentSlug }) {
           aria-label="Percakapan"
           className={cn("panel flex flex-col p-4", tab === "chat" ? "flex" : "hidden lg:flex")}
         >
-          {selectedThread ? (
-            <ThreadConversation thread={selectedThread} />
-          ) : (
-            <StateBlock
-              title="Pilih thread"
-              description="Pilih salah satu thread untuk melihat percakapan dan output terstruktur."
-            />
-          )}
+          <AgentChat
+            key={`${slug}-${selectedThread?.id ?? "none"}`}
+            slug={slug}
+            thread={selectedThread}
+          />
         </section>
 
         <aside
@@ -252,62 +259,142 @@ export function AgentWorkspace({ slug }: { slug: AgentSlug }) {
   );
 }
 
-function ThreadConversation({ thread }: { thread: Thread }) {
-  const messages = useQuery(messagesQueryOptions(thread.id));
+type ChatEntry = {
+  id: string;
+  role: "user" | "assistant";
+  content?: string;
+  structured?: AgentResponseV1;
+  pending?: boolean;
+};
+
+function AgentChat({ slug, thread }: { slug: AgentSlug; thread: Thread | null }) {
+  const messages = useQuery({
+    ...messagesQueryOptions(thread?.id ?? 0),
+    enabled: thread !== null,
+  });
+  const [entries, setEntries] = useState<ChatEntry[]>([]);
   const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const prompt = draft.trim();
+
+    if (prompt.length === 0 || busy) {
+      return;
+    }
+
+    const userId = crypto.randomUUID();
+    const assistantId = crypto.randomUUID();
+    setDraft("");
+    setBusy(true);
+    setEntries((prev) => [
+      ...prev,
+      { id: userId, role: "user", content: prompt },
+      { id: assistantId, role: "assistant", pending: true },
+    ]);
+
+    try {
+      const started = await bff("/api/runs", RunSummarySchema, {
+        method: "POST",
+        headers: { "Idempotency-Key": createIdempotencyKey() },
+        body: { agent: slug, prompt },
+      });
+
+      let detail: RunDetail | null = null;
+
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        const polled = await bff(`/api/runs/${started.data.run_id}`, RunDetailSchema);
+        detail = polled.data;
+
+        if ((TERMINAL_RUN_STATUSES as readonly string[]).includes(detail.status)) {
+          break;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+      }
+
+      const resolved = detail;
+      setEntries((prev) =>
+        prev.map((entry) => {
+          if (entry.id !== assistantId) {
+            return entry;
+          }
+
+          if (resolved?.result) {
+            return { id: assistantId, role: "assistant", structured: resolved.result };
+          }
+
+          return {
+            id: assistantId,
+            role: "assistant",
+            content: resolved?.error ?? "Run selesai tetapi tidak mengembalikan hasil terstruktur.",
+          };
+        }),
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Permintaan gagal.";
+      setEntries((prev) =>
+        prev.map((entry) =>
+          entry.id === assistantId
+            ? { id: assistantId, role: "assistant", content: `Gagal menjalankan agent: ${message}` }
+            : entry,
+        ),
+      );
+      toast.error("Gagal menjalankan agent", { description: message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const historical = messages.data?.data ?? [];
+  const isEmpty = historical.length === 0 && entries.length === 0;
 
   return (
     <div className="flex h-full min-h-[28rem] flex-col">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-3">
         <div>
-          <h2 className="text-sm font-semibold text-ink">{thread.title}</h2>
-          <p className="text-[0.6875rem] text-ink-faint">{thread.context_summary}</p>
+          <h2 className="text-sm font-semibold text-ink">
+            {thread ? thread.title : "Chat langsung"}
+          </h2>
+          <p className="text-[0.6875rem] text-ink-faint">
+            {thread
+              ? thread.context_summary
+              : "Kirim tugas langsung ke agent. Eksekusi dijalankan Bridge dan hasilnya tampil terstruktur."}
+          </p>
         </div>
-        <Badge tone="neutral">{thread.scope}</Badge>
+        <Badge tone="neutral">{thread ? thread.scope : "run"}</Badge>
       </header>
 
       <div className="flex-1 overflow-y-auto py-4">
-        {messages.isPending ? (
+        {thread && messages.isPending ? (
           <div className="flex flex-col gap-3">
             <Skeleton className="h-16 w-3/4" />
             <Skeleton className="h-28 w-full" />
           </div>
         ) : null}
 
-        {messages.isError ? (
-          <StateBlock
-            tone="danger"
-            title="Pesan gagal dimuat"
-            description="Riwayat percakapan tidak dapat diambil."
-            action={
-              <Button size="sm" variant="secondary" onClick={() => void messages.refetch()}>
-                Coba lagi
-              </Button>
-            }
-          />
+        {isEmpty && !(thread && messages.isPending) ? (
+          <p className="text-sm text-ink-muted">
+            Belum ada percakapan. Tulis instruksi di bawah untuk menjalankan agent ini.
+          </p>
         ) : null}
 
-        {messages.data ? (
-          <ol className="flex flex-col gap-4">
-            {messages.data.data.map((message) => (
-              <li key={message.id}>
-                <MessageBubble message={message} />
-              </li>
-            ))}
-          </ol>
-        ) : null}
+        <ol className="flex flex-col gap-4">
+          {historical.map((message) => (
+            <li key={`msg-${message.id}`}>
+              <MessageBubble message={message} />
+            </li>
+          ))}
+          {entries.map((entry) => (
+            <li key={entry.id}>
+              <ChatEntryBubble entry={entry} />
+            </li>
+          ))}
+        </ol>
       </div>
 
-      <form
-        className="flex flex-col gap-2 border-t border-line pt-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          toast.info("Prototype: run belum dikirim ke Bridge", {
-            description: "Eksekusi agent nyata aktif setelah integrasi Bridge selesai.",
-          });
-          setDraft("");
-        }}
-      >
+      <form className="flex flex-col gap-2 border-t border-line pt-3" onSubmit={handleSubmit}>
         <label htmlFor="composer" className="sr-only">
           Tulis instruksi untuk agent
         </label>
@@ -316,20 +403,61 @@ function ThreadConversation({ thread }: { thread: Thread }) {
           rows={3}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
           placeholder="Tulis tugas spesifik untuk agent ini…"
           className="w-full resize-y rounded-[var(--radius-control)] border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-faint"
         />
         <div className="flex items-center justify-between gap-2">
-          <Button variant="ghost" size="sm" type="button">
-            <Paperclip aria-hidden className="size-4" />
-            Lampiran
-          </Button>
-          <Button variant="primary" size="sm" type="submit" disabled={draft.trim().length === 0}>
-            <Send aria-hidden className="size-4" />
-            Kirim
+          <span className="text-[0.6875rem] text-ink-faint">⌘/Ctrl + Enter untuk kirim</span>
+          <Button
+            variant="primary"
+            size="sm"
+            type="submit"
+            disabled={busy || draft.trim().length === 0}
+          >
+            {busy ? (
+              <Loader2 aria-hidden className="size-4 animate-spin" />
+            ) : (
+              <Send aria-hidden className="size-4" />
+            )}
+            {busy ? "Menjalankan…" : "Kirim"}
           </Button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function ChatEntryBubble({ entry }: { entry: ChatEntry }) {
+  const isUser = entry.role === "user";
+
+  return (
+    <div className={cn("flex flex-col gap-1.5", isUser ? "items-end" : "items-start")}>
+      <span className="text-[0.6875rem] text-ink-faint">{isUser ? "Kamu" : "Agent"}</span>
+      <div
+        className={cn(
+          "max-w-full rounded-[var(--radius-panel)] px-4 py-3",
+          isUser ? "bg-brand text-brand-ink" : "bg-surface-sunken",
+        )}
+      >
+        {entry.pending ? (
+          <span className="flex items-center gap-2 text-sm text-ink-muted">
+            <Loader2 aria-hidden className="size-4 animate-spin" />
+            Agent sedang mengeksekusi…
+          </span>
+        ) : entry.structured ? (
+          <StructuredMessage result={entry.structured} />
+        ) : (
+          <p className="max-w-[68ch] whitespace-pre-wrap text-sm leading-relaxed">
+            {entry.content}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

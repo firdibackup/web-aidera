@@ -16,6 +16,8 @@ export type BridgeJsonPath =
   | `/api/threads/${number}/messages`
   | "/api/plans"
   | `/api/plans/${number}/approve`
+  | "/api/runs"
+  | `/api/runs/${number}`
   | "/api/board"
   | "/api/calendar"
   | "/api/contents"
@@ -89,11 +91,10 @@ function parseErrorPayload(payload: unknown): ErrorEnvelope["error"] {
   return { code, message, details };
 }
 
-export async function bridgeJson<T>(
+export async function bridgeFetch(
   path: BridgeJsonPath,
-  schema: z.ZodType<T>,
   request: BridgeJsonRequest = {},
-): Promise<T> {
+): Promise<unknown> {
   const environment = getServerEnv();
 
   if (environment.dataMode !== "live" || !environment.bridgeUrl || !environment.bridgeToken) {
@@ -144,6 +145,16 @@ export async function bridgeJson<T>(
       response.headers.get("retry-after"),
     );
   }
+
+  return payload;
+}
+
+export async function bridgeJson<T>(
+  path: BridgeJsonPath,
+  schema: z.ZodType<T>,
+  request: BridgeJsonRequest = {},
+): Promise<T> {
+  const payload = await bridgeFetch(path, request);
 
   return schema.parse(payload);
 }

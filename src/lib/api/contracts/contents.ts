@@ -99,6 +99,22 @@ export const ContentListItemSchema = ContentCardSchema.extend({
   archived: z.boolean(),
 });
 
+export const CreateContentInputSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200),
+    format: z.string().trim().min(1).max(80),
+    pillar: z.string().trim().min(1).max(80),
+    priority: ContentPrioritySchema,
+  })
+  .strict();
+
+export const CreatedContentSchema = z
+  .object({
+    id: PositiveIdSchema,
+    data_source: DataSourceFieldSchema,
+  })
+  .strict();
+
 export const ContentSortSchema = z.enum([
   "updated_desc",
   "updated_asc",
@@ -150,6 +166,8 @@ export type Task = z.infer<typeof TaskSchema>;
 export type ContentMetrics = z.infer<typeof ContentMetricsSchema>;
 export type ContentDetail = z.infer<typeof ContentDetailSchema>;
 export type ContentListItem = z.infer<typeof ContentListItemSchema>;
+export type CreateContentInput = z.infer<typeof CreateContentInputSchema>;
+export type CreatedContent = z.infer<typeof CreatedContentSchema>;
 export type ContentQuery = z.infer<typeof ContentQuerySchema>;
 export type ContentSort = z.infer<typeof ContentSortSchema>;
 export type ArtifactQuery = z.infer<typeof ArtifactQuerySchema>;

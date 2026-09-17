@@ -123,6 +123,7 @@ export const MoveContentStageInputSchema = z
   });
 
 export type ContentStage = z.infer<typeof ContentStageSchema>;
+export type ContentPriority = z.infer<typeof ContentPrioritySchema>;
 export type ContentCard = z.infer<typeof ContentCardSchema>;
 export type BoardColumn = z.infer<typeof BoardColumnSchema>;
 export type Board = z.infer<typeof BoardSchema>;
